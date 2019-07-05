@@ -1,0 +1,88 @@
+- name: Apply Initial Setup
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    remove_unwanted:
+      - totem
+      - empathy
+      - gnome-boxes
+      - gnome-documents
+      - gnome-contacts
+      - gnome-calendar
+    add_desired:
+      - vim 
+      - lv2-swh-plugins 
+      - keepassxc 
+      - gnome-tweak-tool 
+      - nextcloud-client 
+      - virt-manager 
+      - libvirt 
+      - qemu-kvm 
+      - vlc 
+      - chromium 
+      - chrome-gnome-shell 
+      - powerline 
+      - flatpak 
+      - krita 
+      - ImageMagick 
+      - ansible 
+      - ceph 
+      - clementine 
+      - firefox 
+      - konversation 
+      - git 
+      - python3-openstackclient 
+      - keychain 
+      - python3-boto 
+      - python3-boto3 
+      - npm 
+      - sqlite
+  tasks:
+    - name: Install libselinux-python (needed for some reason to edit files)
+      package:
+        name: libselinux-python
+        state: present
+    - name: Get Major Version
+      debug:
+        msg: "{{ hostvars[inventory_hostname].ansible_distribution_major_version }}"
+    - name: Find out whether rpmfusion-free is installed
+      command: rpm -q rpmfusion-free
+      args:
+        warn: false
+      register: rpmfusion_free_installed
+      failed_when: rpmfusion_free_installed.rc >=2
+    - name: Find out whether rpmfusion-nonfree is installed
+      command: rpm -q rpmfusion-nonfree
+      args:
+        warn: false
+      register: rpmfusion_nonfree_installed
+      failed_when: rpmfusion_nonfree_installed.rc >=2
+    - name: Install RPMFusion Free
+      dnf:
+        name: https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ hostvars[inventory_hostname].ansible_distribution_major_version }}.noarch.rpm
+        state: present
+      when: rpmfusion_free_installed.stdout is search("not installed")
+    - name: Install RPMFusion Non-Free
+      dnf:
+        name: https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ hostvars[inventory_hostname].ansible_distribution_major_version }}.noarch.rpm
+        state: present
+      when: rpmfusion_nonfree_installed.stdout is search("not installed")
+    - name: Let wheel group members use sudo without a password
+      lineinfile:
+        path: /etc/sudoers.d/wheel
+        create: yes
+        line: '%wheel ALL=(ALL) NOPASSWD: ALL'
+    - name: Remove unwanted GNOME extras
+      dnf:
+        name: "{{ remove_unwanted }}"
+        state: absent
+        autoremove: yes
+    - name: Install gstreamer1-libav (find out why this is a separate task)
+      dnf:
+        name: gstreamer1-libav
+        state: present
+    - name: Install desired packages
+      dnf:
+        name: "{{ add_desired }}"
+        state: present
